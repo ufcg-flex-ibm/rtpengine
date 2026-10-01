@@ -1,0 +1,38 @@
+syntax = "proto3";
+package rtpengine.recording.v1;
+
+service AudioRecorder {
+  rpc StreamRecording(stream RecordingEvent) returns (RecordingResult);
+}
+
+message RecordingEvent {
+  oneof event {
+    RecordingStart start = 1;
+    AudioChunk chunk = 2;
+    RecordingEnd end = 3;
+  }
+}
+
+message RecordingStart {
+  string call_id = 1;
+  string recording_id = 2;
+  string track_id = 3;
+  uint32 sample_rate = 4;
+  uint32 channels = 5;
+  string encoding = 6;
+}
+
+message AudioChunk {
+  uint64 sequence = 1;
+  int64 pts_samples = 2;
+  bytes pcm = 3;
+}
+
+message RecordingEnd {
+  string discarded = 1;
+}
+
+message RecordingResult {
+  bool accepted = 1;
+  string message = 2;
+}
