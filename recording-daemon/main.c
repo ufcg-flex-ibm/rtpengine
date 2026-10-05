@@ -84,6 +84,10 @@ char *gcs_service_account;
 char *gcs_scope;
 gboolean gcs_nverify;
 gboolean gcs_medialink;
+#ifdef WITH_GRPC
+char *grpc_target;
+bool grpc_insecure;
+#endif
 
 
 static GQueue threads = G_QUEUE_INIT; // only accessed from main thread
@@ -270,6 +274,10 @@ static void options(int *argc, char ***argv) {
 		{ "gcs-scope", 		0,   0, G_OPTION_ARG_STRING,	&gcs_scope,	"Scope for GCS JWT authentication",	"STRING"	},
 		{ "gcs-no-verify", 	0,   0, G_OPTION_ARG_NONE,	&gcs_nverify,	"Disable TLS verification for GCS",	NULL		},
 		{ "gcs-media-link", 	0,   0, G_OPTION_ARG_NONE,	&gcs_medialink,	"Store direct access URI",		NULL		},
+#ifdef WITH_GRPC
+		{ "grpc-target",	0,   0, G_OPTION_ARG_STRING,	&grpc_target,	"gRPC recording server target",		"HOST:PORT"	},
+		{ "grpc-insecure",	0,   0, G_OPTION_ARG_NONE,	&grpc_insecure,	"Use plaintext gRPC transport",		NULL		},
+#endif
 		{ NULL, }
 	};
 
@@ -301,6 +309,14 @@ static void options(int *argc, char ***argv) {
 
 	if (!strcmp(output_format, "none"))
 		no_output_allowed = true;
+
+#ifdef WITH_GRPC
+	// Sem endereco, nao ha para quem enviar a gravacao.
+	if (grpc_target && !*grpc_target)
+		die("gRPC target cannot be empty");
+	if (grpc_insecure && !grpc_target)
+		die("'grpc-insecure' requires 'grpc-target'");
+#endif
 
 	if (!tls_send_to && !tcp_send_to)
 		tls_mixed = false;
@@ -354,7 +370,11 @@ static void options(int *argc, char ***argv) {
 	if ((output_storage & OUTPUT_STORAGE_MASK) == 0) {
 		if (output_mixed || output_single)
 			die("Output is disabled, but output-mixed or output-single is set");
-		if (!forward_to && !tls_send_to_ep.port) {
+		if (!forward_to && !tls_send_to_ep.port
+#ifdef WITH_GRPC
+				&& !grpc_target
+#endif
+		   ) {
 			//the daemon has no function
 			die("Both output and forwarding are disabled");
 		}
@@ -363,7 +383,11 @@ static void options(int *argc, char ***argv) {
 	} else if (!output_mixed && !output_single)
 		output_mixed = output_single = true;
 
-	if ((output_storage & OUTPUT_STORAGE_MASK) || tls_send_to_ep.port)
+	if ((output_storage & OUTPUT_STORAGE_MASK) || tls_send_to_ep.port
+#ifdef WITH_GRPC
+			|| grpc_target
+#endif
+	   )
 		decoding_enabled = true;
 
 	// make sure S3 path always leads with a slash and always ends with one
@@ -468,6 +492,10 @@ static void options_free(void) {
 	g_free(forward_to);
 	g_free(tls_send_to);
 	g_free(output_pattern);
+#ifdef WITH_GRPC
+	// Libera o endereco que foi guardado ao ler as opcoes.
+	g_free(grpc_target);
+#endif
 
 	// free common config options
 	config_load_free(&rtpe_common_config);

@@ -7,7 +7,7 @@ all:	$(TARGET) $(MANS)
 
 SRCS := $(SRCS) $(patsubst %,$(top_srcdir)/lib/%,$(LIBSRCS))
 
-OBJS := $(SRCS:.c=.o)
+OBJS := $(SRCS:.c=.o) $(CXXSRCS:.cc=.o)
 
 ASM := $(ASM) $(patsubst %,$(top_srcdir)/lib/%,$(LIBASM))
 
@@ -15,7 +15,11 @@ OBJS := $(OBJS) $(ASM:.S=.o)
 
 
 $(TARGET):	$(OBJS) Makefile
+ifeq ($(strip $(CXXSRCS)),)
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(OBJS) $(LDLIBS)
+else
+	$(CXX) $(LDFLAGS) $(CXXFLAGS) -o $@ $(OBJS) $(LDLIBS)
+endif
 
 
 debug:

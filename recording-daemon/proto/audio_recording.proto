@@ -2,9 +2,11 @@ syntax = "proto3";
 package rtpengine.recording.v1;
 
 service AudioRecorder {
+  // O cliente manda varias mensagens; o servidor responde uma vez no final.
   rpc StreamRecording(stream RecordingEvent) returns (RecordingResult);
 }
 
+// Cada mensagem diz se a gravacao comeca, tem audio ou terminou.
 message RecordingEvent {
   oneof event {
     RecordingStart start = 1;
@@ -14,25 +16,30 @@ message RecordingEvent {
 }
 
 message RecordingStart {
+  // Identidade da chamada, da gravacao e desta faixa de audio.
   string call_id = 1;
   string recording_id = 2;
   string track_id = 3;
+  // Formato usado para entender os bytes que chegam nos pacotes.
   uint32 sample_rate = 4;
   uint32 channels = 5;
   string encoding = 6;
 }
 
 message AudioChunk {
+  // sequence marca a ordem; pts_samples marca o tempo; pcm contem o audio.
   uint64 sequence = 1;
   int64 pts_samples = 2;
   bytes pcm = 3;
 }
 
 message RecordingEnd {
-  string discarded = 1;
+  // true significa que a gravacao foi cancelada ou descartada.
+  bool discarded = 1;
 }
 
 message RecordingResult {
+  // O servidor informa se aceitou a gravacao e pode explicar o resultado.
   bool accepted = 1;
   string message = 2;
 }

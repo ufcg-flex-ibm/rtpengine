@@ -56,6 +56,10 @@ extern gboolean notify_nverify;
 extern int notify_threads;
 extern int notify_retries;
 extern char *notify_command;
+#ifdef WITH_GRPC
+extern char *grpc_target;
+extern bool grpc_insecure;
+#endif
 extern gboolean mix_output_per_media;
 extern volatile int shutdown_flag;
 extern gboolean flush_packets;

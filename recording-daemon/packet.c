@@ -20,6 +20,9 @@
 #include "fix_frame_channel_layout.compat"
 #include "tls_send.h"
 #include "mix.h"
+#ifdef WITH_GRPC
+#include "grpc_stream.h"
+#endif
 
 
 static void packet_free(packet_t *packet) {
@@ -33,6 +36,18 @@ static void packet_free(packet_t *packet) {
 void ssrc_close(ssrc_t *s) {
 	output_close(s->metafile, s->output, tag_get(s->metafile, s->stream->tag), s->metafile->discard);
 	s->output = NULL;
+#ifdef WITH_GRPC
+	// No fim da faixa, manda o aviso final e libera o fluxo gRPC.
+	if (s->grpc_stream) {
+		if (!grpc_audio_stream_close(s->grpc_stream,
+					s->metafile->discard || s->grpc_failed))
+			ilog(LOG_ERR, "Failed to finish gRPC recording stream for SSRC %08lx", s->ssrc);
+		s->grpc_stream = NULL;
+	}
+	g_clear_pointer(&s->grpc_call_id, g_free);
+	g_clear_pointer(&s->grpc_recording_id, g_free);
+	g_clear_pointer(&s->grpc_track_id, g_free);
+#endif
 	for (int i = 0; i < G_N_ELEMENTS(s->decoders); i++) {
 		decoder_free(s->decoders[i]);
 		s->decoders[i] = NULL;
@@ -65,6 +80,14 @@ static ssrc_t *ssrc_get(stream_t *stream, unsigned long ssrc) {
 	ret->stream = stream;
 	ret->ssrc = ssrc;
 	packet_sequencer_init(&ret->sequencer, (void (*)(seq_packet_t *)) packet_free, false);
+#ifdef WITH_GRPC
+	// Guarda a identidade desta faixa para inclui-la no inicio enviado ao servidor.
+	if (grpc_target) {
+		ret->grpc_call_id = g_strdup(mf->call_id);
+		ret->grpc_recording_id = g_strdup(mf->random_tag);
+		ret->grpc_track_id = g_strdup_printf("%lu-%08lx", stream->id, ssrc);
+	}
+#endif
 
 	g_hash_table_insert(mf->ssrc_hash, GUINT_TO_POINTER(ssrc), ret);
 

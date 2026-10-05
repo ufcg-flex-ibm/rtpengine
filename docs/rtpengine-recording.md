@@ -257,6 +257,25 @@ sufficient for a standard installation of rtpengine.
 
     __none__ is a legacy alias for __output-storage=none__.
 
+- __\-\-grpc-target=__*HOST:PORT*
+- __\-\-grpc-insecure__
+
+    When the recording daemon is built with gRPC support, send decoded PCM audio
+    to an `AudioRecorder.StreamRecording` gRPC endpoint. One client stream is
+    created for each RTP SSRC; its start event contains the call ID, recording
+    ID, track ID, sample rate, channel count, and `pcm_s16le` encoding. Each
+    decoded frame is sent as an ordered audio chunk with its sample timestamp.
+    The end event marks whether the recording was discarded.
+
+    TLS with system certificate verification is used by default. Use
+    __grpc-insecure__ only for trusted networks or local testing. To stream
+    without also writing a recording file, set __output-format=none__.
+
+    gRPC support is optional at build time. Install the gRPC C++ and Protocol
+    Buffers development packages (for example, `libgrpc++-dev`,
+    `libprotobuf-dev`, `protobuf-compiler`, and `protobuf-compiler-grpc` on
+    Debian), then build with `make -C recording-daemon with_grpc=yes`.
+
 - __\-\-resample-to=__*INT*
 
     Resample all audio to the given sample rate (e.g. __48000__). Resampling is

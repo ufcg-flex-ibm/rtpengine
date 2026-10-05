@@ -24,6 +24,7 @@ struct ip6_hdr;
 struct udphdr;
 struct rtp_header;
 struct streambuf;
+struct grpc_audio_stream;
 
 
 typedef struct handler_s handler_t;
@@ -124,6 +125,16 @@ struct ssrc_s {
 	decode_t *decoders[128];
 	output_t *output;
 	tls_fwd_t *tls_fwd;
+	// Informacoes usadas pelo envio gRPC desta faixa, se ele estiver ligado.
+	struct grpc_audio_stream *grpc_stream;
+	char *grpc_call_id;
+	char *grpc_recording_id;
+	char *grpc_track_id;
+	// Formato escolhido no primeiro quadro; ajuda a notar mudancas inesperadas.
+	unsigned int grpc_sample_rate;
+	unsigned int grpc_channels;
+	// Se algo falhar, paramos de enfileirar audio para esta faixa.
+	unsigned int grpc_failed:1;
 };
 
 

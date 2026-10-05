@@ -5,3 +5,5 @@ core.*
 .ycm_extra_conf.pyc
 rtpengine-recording
 *.8
+proto/audio_recording.pb.*
+proto/audio_recording.grpc.pb.*

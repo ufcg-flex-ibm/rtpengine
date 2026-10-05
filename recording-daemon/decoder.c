@@ -20,6 +20,10 @@
 #include "packet.h"
 #include "tag.h"
 #include "tls_send.h"
+#include "fix_frame_channel_layout.compat"
+#ifdef WITH_GRPC
+#include "grpc_stream.h"
+#endif
 
 
 // does not initialise the contained `sink`
@@ -98,6 +102,65 @@ static int decoder_got_frame(decoder_t *dec, AVFrame *frame, void *sp, void *dp)
 
 	if (metafile->recording_on) {
 		sink_add(&deco->mix_sink, frame);
+
+#ifdef WITH_GRPC
+		// So envia se o gRPC foi ligado e esta faixa ainda nao teve erro.
+		if (grpc_target && !ssrc->grpc_failed) {
+			unsigned channels = GET_CHANNELS(frame);
+			// O servidor espera audio PCM de 16 bits com formato valido.
+			if (frame->format != AV_SAMPLE_FMT_S16 || frame->nb_samples <= 0
+					|| frame->sample_rate <= 0 || channels == 0) {
+				ilog(LOG_ERR, "Invalid PCM frame format for gRPC recording SSRC %08lx",
+						ssrc->ssrc);
+				ssrc->grpc_failed = 1;
+			}
+			if (!ssrc->grpc_stream) {
+				// Abre a conexao na primeira vez que chega audio desta faixa.
+				if (!ssrc->grpc_failed
+						&& (!ssrc->grpc_call_id || !ssrc->grpc_recording_id)) {
+					ilog(LOG_ERR, "Cannot start gRPC recording for SSRC %08lx: call ID or recording ID is missing",
+							ssrc->ssrc);
+					ssrc->grpc_failed = 1;
+				}
+				else if (!ssrc->grpc_failed) {
+					ssrc->grpc_stream = grpc_audio_stream_open(grpc_target,
+							grpc_insecure, ssrc->grpc_call_id,
+							ssrc->grpc_recording_id, ssrc->grpc_track_id,
+							frame->sample_rate, channels);
+					if (!ssrc->grpc_stream) {
+						ilog(LOG_ERR, "Failed to open gRPC recording stream for SSRC %08lx",
+								ssrc->ssrc);
+						ssrc->grpc_failed = 1;
+					}
+					else {
+						ssrc->grpc_sample_rate = frame->sample_rate;
+						ssrc->grpc_channels = channels;
+					}
+				}
+			}
+
+			// A mesma faixa deve continuar usando a mesma taxa e quantidade de canais.
+			if (ssrc->grpc_stream && !ssrc->grpc_failed
+					&& (ssrc->grpc_sample_rate != (unsigned) frame->sample_rate
+						|| ssrc->grpc_channels != channels)) {
+				ilog(LOG_ERR, "gRPC audio format changed within SSRC %08lx",
+						ssrc->ssrc);
+				ssrc->grpc_failed = 1;
+			}
+
+			if (ssrc->grpc_stream && !ssrc->grpc_failed) {
+				// Cada quadro decodificado vira um pedaco enviado ao servidor.
+				size_t pcm_len = (size_t) frame->nb_samples
+					* channels * sizeof(int16_t);
+				if (!grpc_audio_stream_push_pcm(ssrc->grpc_stream,
+							frame->extended_data[0], pcm_len, frame->pts)) {
+					ilog(LOG_ERR, "Failed to queue PCM chunk for gRPC recording SSRC %08lx",
+							ssrc->ssrc);
+					ssrc->grpc_failed = 1;
+				}
+			}
+		}
+#endif
 
 		if (output) {
 			dbg("SSRC %lx of stream #%lu has single output", ssrc->ssrc, stream->id);
