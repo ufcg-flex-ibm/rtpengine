@@ -18,6 +18,7 @@ RUN apt-get update \
   libbcg729-dev \
   libcurl4-openssl-dev \
   libevent-dev \
+  libgrpc++-dev \
   libglib2.0-dev \
   libhiredis-dev \
   libiptc-dev \
@@ -27,12 +28,15 @@ RUN apt-get update \
   libopus-dev \
   libpcap-dev \
   libpcre2-dev \
+  libprotobuf-dev \
   libspandsp-dev \
   libssl-dev \
   libwebsockets-dev \
   make \
   markdown \
-  patch
+  patch \
+  protobuf-compiler \
+  protobuf-compiler-grpc
 
 WORKDIR /usr/src/rtpengine
 COPY . .
@@ -44,7 +48,7 @@ RUN make -j$(nproc) rtpengine && \
 
 FROM build AS rtpengine-recording
 WORKDIR /usr/src/rtpengine/recording-daemon
-RUN make -j$(nproc) rtpengine-recording && \
+RUN make -j$(nproc) rtpengine-recording with_grpc=yes && \
   strip -o /usr/local/bin/rtpengine-recording rtpengine-recording
 
 FROM debian:trixie-slim
@@ -64,6 +68,7 @@ RUN apt-get update \
   libcurl4 \
   libevent-2.1-7 \
   libevent-pthreads-2.1-7 \
+  libgrpc++1.51t64 \
   libglib2.0-0 \
   libhiredis1.1.0 \
   libip4tc2 \
@@ -75,6 +80,7 @@ RUN apt-get update \
   libopus0 \
   libpcap0.8 \
   libpcre2-8-0 \
+  libprotobuf32t64 \
   libspandsp2 \
   libssl3 \
   libwebsockets19 \
