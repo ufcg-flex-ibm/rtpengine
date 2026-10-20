@@ -84,17 +84,15 @@ RUN apt-get update \
   libspandsp2 \
   libssl3 \
   libwebsockets19 \
+  iproute2 \
+  kmod \
   net-tools \
   procps \
-  sudo \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=rtpengine /usr/local/bin/rtpengine /usr/local/bin/
 COPY --from=rtpengine-recording /usr/local/bin/rtpengine-recording /usr/local/bin/
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN echo '%sudo   ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/nopasswd && \
-  groupadd --gid 1000 rtpengine && \
-  useradd --uid 1000 --gid rtpengine -G sudo --shell /bin/bash --create-home rtpengine
-USER rtpengine
-WORKDIR /home/rtpengine
+USER root
+WORKDIR /root
 COPY docker/rtpengine.conf .

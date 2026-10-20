@@ -7,6 +7,10 @@ lib/fix_frame_channel_layout.h
 lib/spandsp_logging.h
 perf-tester/
 recording-daemon/rtpengine-recording
+recording-daemon/proto/audio_recording.pb.cc
+recording-daemon/proto/audio_recording.pb.h
+recording-daemon/proto/audio_recording.grpc.pb.cc
+recording-daemon/proto/audio_recording.grpc.pb.h
 t/
 tests/
 **/*.strhash.c
