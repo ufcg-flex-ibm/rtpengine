@@ -55,6 +55,15 @@ class AudioRecorder(pb_grpc.AudioRecorderServicer):
                 message="Metadados invalidos ou formato de audio nao suportado",
             )
 
+        logging.info(
+            "Fluxo gRPC iniciado: call=%s recording=%s track=%s rate=%d channels=%d",
+            start.call_id,
+            start.recording_id,
+            start.track_id,
+            start.sample_rate,
+            start.channels,
+        )
+
         # Cada faixa ganha seu proprio WAV; um identificador aleatorio evita
         # sobrescrever uma gravacao anterior com os mesmos nomes.
         unique_id = uuid.uuid4().hex
@@ -76,6 +85,7 @@ class AudioRecorder(pb_grpc.AudioRecorderServicer):
         discarded = False
         expected_sequence = 0
         total_samples = 0
+        total_bytes = 0
         bytes_per_sample_frame = start.channels * SAMPLE_WIDTH_BYTES
 
         try:
@@ -101,7 +111,16 @@ class AudioRecorder(pb_grpc.AudioRecorderServicer):
 
                         wav_file.writeframesraw(chunk.pcm)
                         total_samples += len(chunk.pcm) // bytes_per_sample_frame
+                        total_bytes += len(chunk.pcm)
                         expected_sequence += 1
+                        if expected_sequence == 1 or expected_sequence % 100 == 0:
+                            logging.info(
+                                "Audio gRPC recebido: call=%s track=%s chunks=%d bytes=%d",
+                                start.call_id,
+                                start.track_id,
+                                expected_sequence,
+                                total_bytes,
+                            )
                     elif event_type == "end":
                         discarded = event.end.discarded
                         ended = True

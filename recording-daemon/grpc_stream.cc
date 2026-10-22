@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <deque>
 #include <exception>
 #include <memory>
@@ -73,7 +74,9 @@ struct grpc_audio_stream {
 		try {
 			run_rpc();
 		}
-		catch (const std::exception &) {
+		catch (const std::exception &error) {
+			std::fprintf(stderr, "[gRPC ERROR] Stream failed for call '%s', track '%s': %s\n",
+					call_id.c_str(), track_id.c_str(), error.what());
 			std::lock_guard<std::mutex> lock(mutex);
 			failed = true;
 			accepted = false;
@@ -94,6 +97,10 @@ struct grpc_audio_stream {
 		std::unique_ptr<grpc::ClientWriter<RecordingEvent>> writer(
 				stub->StreamRecording(&context, &result));
 
+		std::fprintf(stderr,
+				"[gRPC INFO] Opening stream to %s for call '%s', recording '%s', track '%s'\n",
+				target.c_str(), call_id.c_str(), recording_id.c_str(), track_id.c_str());
+
 		// A primeira mensagem avisa quem esta ligando e como o audio esta formatado.
 		RecordingEvent event;
 		auto *start_event = event.mutable_start();
@@ -104,6 +111,8 @@ struct grpc_audio_stream {
 		start_event->set_channels(channels);
 		start_event->set_encoding("pcm_s16le");
 		bool ok = writer->Write(event);
+		size_t sent_chunks = 0;
+		size_t sent_bytes = 0;
 
 		// Espera audio novo e manda os pacotes em ordem.
 		while (ok) {
@@ -118,7 +127,16 @@ struct grpc_audio_stream {
 				queue.pop_front();
 			}
 
+			size_t chunk_bytes = event.chunk().pcm().size();
 			ok = writer->Write(event);
+			if (ok) {
+				++sent_chunks;
+				sent_bytes += chunk_bytes;
+				if (sent_chunks == 1 || sent_chunks % 100 == 0)
+					std::fprintf(stderr,
+							"[gRPC INFO] Audio sent for call '%s', track '%s': %zu chunks, %zu bytes\n",
+							call_id.c_str(), track_id.c_str(), sent_chunks, sent_bytes);
+			}
 		}
 
 		// A ultima mensagem avisa que acabou e se a gravacao foi descartada.
@@ -136,6 +154,15 @@ struct grpc_audio_stream {
 		std::lock_guard<std::mutex> lock(mutex);
 		accepted = ok && status.ok() && result.accepted() && !failed;
 		failed = failed || !accepted;
+		if (accepted)
+			std::fprintf(stderr,
+					"[gRPC INFO] Recording accepted for call '%s', track '%s': %zu chunks, %zu bytes\n",
+					call_id.c_str(), track_id.c_str(), sent_chunks, sent_bytes);
+		else
+			std::fprintf(stderr,
+					"[gRPC ERROR] Recording failed for call '%s', track '%s': status=%s, server_message='%s'\n",
+					call_id.c_str(), track_id.c_str(),
+					status.error_message().c_str(), result.message().c_str());
 	}
 
 	// Copia um pedaco de audio para a fila. Esta funcao nao espera a rede enviar.
